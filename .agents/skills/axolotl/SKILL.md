@@ -12,6 +12,8 @@ Like the axolotl—a creature celebrated for quiet observation, resilience, and 
 
 During intense development sessions, developers and agents encounter critical friction points, emotional highs and lows, vicious debugging loops, and moments of technical compromise. These moments are usually lost once the terminal closes. Axolotl captures these pivotal moments as structured retrospective notes in `~/.axolotl/notes/`, transforming real-time struggle and triumph into lasting insight.
 
+The skill is packaged as a **self-contained unit**: all logic, templates, and execution scripts live directly inside this skill folder (`.agents/skills/axolotl/`), storing notes in the standard user directory `~/.axolotl/notes/` without polluting `$HOME` with external binaries or modifying shell configurations.
+
 ---
 
 ## High-Signal Detection Rubric
@@ -56,14 +58,21 @@ At the **end of the agent's chain of thought** for a turn:
 
 ---
 
-## Note Schema & File Structure
+## Storage & Note Structure
 
-Notes are stored in:
+Notes are saved in:
 ```text
 ~/.axolotl/notes/YYYY-MM-DD_HHMM_<slug>.md
 ```
 
-### Note File Template
+### Initializing Storage
+Before recording the first note (or to ensure directories exist), run:
+```bash
+./scripts/init.sh
+```
+This simply creates `~/.axolotl/notes` if it does not already exist.
+
+### Note Schema
 ```markdown
 ---
 id: YYYY-MM-DD_HHMM_<slug>
@@ -93,12 +102,17 @@ A probing question or takeaway for the next team or personal retrospective (e.g.
 
 ---
 
-## Recording Methods
+## Skill Scripts
 
-### Method A: Using the Axolotl CLI (Recommended)
-If `axolotl` CLI is available in PATH or at `~/.axolotl/bin/axolotl`:
+All executable tools are bundled within the skill's [`scripts/`](./scripts/) directory:
+
+- [**`scripts/init.sh`**](./scripts/init.sh): Creates the `$HOME/.axolotl` directory structure.
+- [**`scripts/record-note.sh`**](./scripts/record-note.sh): Fast wrapper to record a retrospective note.
+- [**`scripts/axolotl`**](./scripts/axolotl): Complete retrospective toolkit (`record`, `list`, `view`, `retro`, `stats`).
+
+### Recording Example
 ```bash
-~/.axolotl/bin/axolotl record \
+./scripts/record-note.sh \
   --title "Looping on Docker networking bridge" \
   --category "problem_solving" \
   --pattern "thrashing_loop" \
@@ -111,10 +125,7 @@ If `axolotl` CLI is available in PATH or at `~/.axolotl/bin/axolotl`:
   --root-cause "Assumed container port mismatch; actual cause was a stale container holding the socket" \
   --retro-prompt "Why didn't we inspect 'lsof -i :8080' or running docker containers before editing compose files?"
 ```
-
-### Method B: Direct File Creation
-If using direct file tools or when running offline:
-Create directory `~/.axolotl/notes` if not present, and write the file directly conforming to the template above.
+*(Or use direct file creation if running offline or in read-only script mode).*
 
 ---
 

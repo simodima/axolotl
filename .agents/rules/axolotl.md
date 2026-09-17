@@ -18,7 +18,7 @@ At the conclusion of your internal reasoning (chain of thought) for each respons
 
 3. **Action on Trigger**:
    - If a high-signal condition is identified:
-     1. Record a structured note in `~/.axolotl/notes/YYYY-MM-DD_HHMM_<slug>.md` (using `~/.axolotl/bin/axolotl record` if available, or direct file write).
+     1. Record a structured note in `~/.axolotl/notes/YYYY-MM-DD_HHMM_<slug>.md` (using `.agents/skills/axolotl/scripts/record-note.sh` or direct file write).
      2. Conclude the user-facing response with the subtle footer:
         ```markdown
         > 📝 *Axolotl: recorded retrospective note on [pattern_name]*
