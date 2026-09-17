@@ -1,0 +1,617 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Axolotl CLI: Retrospective Observer Toolkit
+# Evaluates, records, and synthesizes engineering retrospectives.
+# Compatible with Bash 3.2+ (macOS default) and modern Linux shells.
+# ==============================================================================
+
+set -e
+
+VERSION="1.0.0"
+AXOLOTL_HOME="${AXOLOTL_HOME:-$HOME/.axolotl}"
+NOTES_DIR="$AXOLOTL_HOME/notes"
+TEMPLATES_DIR="$AXOLOTL_HOME/templates"
+BIN_DIR="$AXOLOTL_HOME/bin"
+
+# ANSI Color Codes (disabled if not terminal or NO_COLOR is set)
+if [ -t 1 ] && [ -z "$NO_COLOR" ]; then
+    C_RESET="\033[0m"
+    C_BOLD="\033[1m"
+    C_DIM="\033[2m"
+    C_RED="\033[31m"
+    C_GREEN="\033[32m"
+    C_YELLOW="\033[33m"
+    C_BLUE="\033[34m"
+    C_MAGENTA="\033[35m"
+    C_CYAN="\033[36m"
+else
+    C_RESET=""
+    C_BOLD=""
+    C_DIM=""
+    C_RED=""
+    C_GREEN=""
+    C_YELLOW=""
+    C_BLUE=""
+    C_MAGENTA=""
+    C_CYAN=""
+fi
+
+# Print banner
+print_banner() {
+    cat << 'EOF'
+     _    __  _____  _      ____ _____ _     
+    / \   \ \/ / _ \| |    / __ \_   _| |    
+   / _ \   \  / | | | |   | |  | || | | |    
+  / ___ \  /  \ |_| | |___| |__| || | | |___ 
+ /_/   \_\/_/\_\___/|_____|\____/ |_| |_____|
+EOF
+}
+
+# Help message
+show_help() {
+    print_banner
+    echo -e "${C_BOLD}Axolotl CLI${C_RESET} v${VERSION} — Engineering Retrospective Observer"
+    echo ""
+    echo -e "${C_BOLD}USAGE:${C_RESET}"
+    echo "    axolotl <command> [options]"
+    echo ""
+    echo -e "${C_BOLD}COMMANDS:${C_RESET}"
+    echo -e "    ${C_CYAN}init${C_RESET}                   Initialize ~/.axolotl directories and templates"
+    echo -e "    ${C_CYAN}record${C_RESET} [options]       Record a new retrospective observation note"
+    echo -e "    ${C_CYAN}list${C_RESET} [options]         List recorded notes in chronological table"
+    echo -e "    ${C_CYAN}view${C_RESET} <id|file>         Display and format a retrospective note"
+    echo -e "    ${C_CYAN}retro${C_RESET} [options]        Generate a retrospective digest & discussion agenda"
+    echo -e "    ${C_CYAN}stats${C_RESET}                  Display summary metrics and pattern distributions"
+    echo -e "    ${C_CYAN}help${C_RESET}, --help, -h       Show this help message"
+    echo ""
+    echo -e "${C_BOLD}RECORD OPTIONS:${C_RESET}"
+    echo "    --title <str>           Title of the retrospective note"
+    echo "    --category <str>        Category (affective | problem_solving | cognitive | codebase_health)"
+    echo "    --pattern <str>         Pattern identifier (e.g. thrashing, frustration, explicit_debt)"
+    echo "    --mood <str>            Mood (frustration | helplessness | urgency | self_doubt | eureka | neutral)"
+    echo "    --severity <str>        Severity level (low | medium | high | critical)"
+    echo "    --project <str>         Project name (defaults to git repo or cwd)"
+    echo "    --tags <tag1,tag2>      Comma-separated tags"
+    echo "    --trigger <str>         What triggered the observation"
+    echo "    --observation <str>     Specific signals and evidence noticed"
+    echo "    --root-cause <str>      Underlying root cause hypothesis"
+    echo "    --retro-prompt <str>    Reflective question for future retrospective"
+    echo "    --file <path>           Import full markdown note from file"
+    echo ""
+    echo -e "${C_BOLD}RETRO / LIST OPTIONS:${C_RESET}"
+    echo "    --days <n>              Limit report to notes from last N days (default: 14)"
+    echo "    --category <str>        Filter by category"
+    echo "    --project <str>         Filter by project"
+    echo "    --limit <n>             Limit list output rows (default: 20)"
+    echo ""
+    echo -e "${C_BOLD}STORAGE:${C_RESET}"
+    echo "    Notes directory: $NOTES_DIR"
+    echo ""
+}
+
+# Ensure directory structure
+ensure_dirs() {
+    mkdir -p "$NOTES_DIR"
+    mkdir -p "$TEMPLATES_DIR"
+    mkdir -p "$BIN_DIR"
+}
+
+# Subcommand: init
+cmd_init() {
+    ensure_dirs
+    echo -e "${C_GREEN}✓${C_RESET} Initialized Axolotl storage at ${C_BOLD}$AXOLOTL_HOME${C_RESET}"
+    echo -e "  - Notes:     $NOTES_DIR"
+    echo -e "  - Templates: $TEMPLATES_DIR"
+    echo -e "  - Bin:       $BIN_DIR"
+
+    # Create default template if missing
+    local default_template="$TEMPLATES_DIR/note.template.md"
+    if [ ! -f "$default_template" ]; then
+        cat << 'EOF' > "$default_template"
+---
+id: {{ID}}
+timestamp: "{{TIMESTAMP}}"
+project: "{{PROJECT}}"
+category: "{{CATEGORY}}"
+pattern: "{{PATTERN}}"
+detected_mood: "{{MOOD}}"
+severity: "{{SEVERITY}}"
+tags: [{{TAGS}}]
+---
+
+# Retrospective Note: {{TITLE}}
+
+## 1. Trigger & Context
+{{TRIGGER}}
+
+## 2. Agent Observation & Signals
+{{OBSERVATION}}
+
+## 3. Underlying Root Cause Hypothesis
+{{ROOT_CAUSE}}
+
+## 4. Retrospective Prompt for Future You
+{{RETRO_PROMPT}}
+EOF
+        echo -e "${C_GREEN}✓${C_RESET} Installed default template at $default_template"
+    fi
+}
+
+# Slugify helper
+slugify() {
+    echo "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '_' | sed 's/^_//;s/_$//' | cut -c1-40
+}
+
+# Detect project name
+detect_project() {
+    if git rev-parse --show-toplevel >/dev/null 2>&1; then
+        basename "$(git rev-parse --show-toplevel)"
+    else
+        basename "$(pwd)"
+    fi
+}
+
+# Subcommand: record
+cmd_record() {
+    ensure_dirs
+
+    local title=""
+    local category="problem_solving"
+    local pattern="general"
+    local mood="neutral"
+    local severity="medium"
+    local project=""
+    local tags=""
+    local trigger=""
+    local observation=""
+    local root_cause=""
+    local retro_prompt=""
+    local import_file=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --title) title="$2"; shift 2 ;;
+            --category) category="$2"; shift 2 ;;
+            --pattern) pattern="$2"; shift 2 ;;
+            --mood) mood="$2"; shift 2 ;;
+            --severity) severity="$2"; shift 2 ;;
+            --project) project="$2"; shift 2 ;;
+            --tags) tags="$2"; shift 2 ;;
+            --trigger) trigger="$2"; shift 2 ;;
+            --observation) observation="$2"; shift 2 ;;
+            --root-cause) root_cause="$2"; shift 2 ;;
+            --retro-prompt) retro_prompt="$2"; shift 2 ;;
+            --file) import_file="$2"; shift 2 ;;
+            *) echo -e "${C_RED}Unknown option:${C_RESET} $1" >&2; exit 1 ;;
+        esac
+    done
+
+    # If import file is specified
+    if [ -n "$import_file" ] && [ -f "$import_file" ]; then
+        local now_prefix
+        now_prefix=$(date +"%Y-%m-%d_%H%M")
+        local base_slug
+        base_slug=$(slugify "$(basename "$import_file" .md)")
+        local dest_file="$NOTES_DIR/${now_prefix}_${base_slug}.md"
+        cp "$import_file" "$dest_file"
+        echo -e "${C_GREEN}✓ Recorded retrospective note from file:${C_RESET} $dest_file"
+        return 0
+    fi
+
+    # Read from STDIN if piped and no arguments were passed
+    if [ ! -t 0 ] && [ -z "$title" ]; then
+        local now_prefix
+        now_prefix=$(date +"%Y-%m-%d_%H%M")
+        local dest_file="$NOTES_DIR/${now_prefix}_stdin_note.md"
+        cat > "$dest_file"
+        echo -e "${C_GREEN}✓ Recorded retrospective note from STDIN:${C_RESET} $dest_file"
+        return 0
+    fi
+
+    # Defaults
+    if [ -z "$project" ]; then
+        project=$(detect_project)
+    fi
+
+    if [ -z "$title" ]; then
+        if [ -t 0 ]; then
+            # Interactive prompts
+            echo -e "${C_BOLD}Axolotl Interactive Note Recorder${C_RESET}"
+            read -p "Title: " title
+            read -p "Category [problem_solving | affective | cognitive | codebase_health]: " input_cat
+            [ -n "$input_cat" ] && category="$input_cat"
+            read -p "Pattern: " input_pattern
+            [ -n "$input_pattern" ] && pattern="$input_pattern"
+            read -p "Mood [frustration|helplessness|urgency|self_doubt|eureka|neutral]: " input_mood
+            [ -n "$input_mood" ] && mood="$input_mood"
+            read -p "Severity [low|medium|high|critical]: " input_sev
+            [ -n "$input_sev" ] && severity="$input_sev"
+            read -p "Tags (comma-separated): " tags
+            read -p "Trigger & Context: " trigger
+            read -p "Agent Observation & Signals: " observation
+            read -p "Root Cause Hypothesis: " root_cause
+            read -p "Retrospective Prompt for Future: " retro_prompt
+        else
+            title="Observation on $pattern"
+        fi
+    fi
+
+    # Format timestamp and ID
+    local iso_date
+    iso_date=$(date +"%Y-%m-%dT%H:%M:%S%z")
+    local file_date
+    file_date=$(date +"%Y-%m-%d_%H%M")
+    local slug
+    slug=$(slugify "$title")
+    [ -z "$slug" ] && slug=$(slugify "$pattern")
+    local note_id="${file_date}_${slug}"
+    local note_file="$NOTES_DIR/${note_id}.md"
+
+    # Format tags for YAML
+    local formatted_tags=""
+    if [ -n "$tags" ]; then
+        IFS=',' read -ra TAG_ARRAY <<< "$tags"
+        for t in "${TAG_ARRAY[@]}"; do
+            clean_t=$(echo "$t" | tr -d ' "')
+            if [ -z "$formatted_tags" ]; then
+                formatted_tags="\"$clean_t\""
+            else
+                formatted_tags="$formatted_tags, \"$clean_t\""
+            fi
+        done
+    fi
+
+    # Write note
+    cat << EOF > "$note_file"
+---
+id: $note_id
+timestamp: "$iso_date"
+project: "$project"
+category: "$category"
+pattern: "$pattern"
+detected_mood: "$mood"
+severity: "$severity"
+tags: [$formatted_tags]
+---
+
+# Retrospective Note: $title
+
+## 1. Trigger & Context
+${trigger:-"Not specified"}
+
+## 2. Agent Observation & Signals
+${observation:-"Not specified"}
+
+## 3. Underlying Root Cause Hypothesis
+${root_cause:-"Not specified"}
+
+## 4. Retrospective Prompt for Future You
+${retro_prompt:-"What can be improved to prevent or mitigate this in future iterations?"}
+EOF
+
+    echo -e "${C_GREEN}✓ Recorded retrospective note:${C_RESET} $note_file"
+    echo "$note_file"
+}
+
+# Helper to extract YAML field from note
+get_yaml_field() {
+    local file="$1"
+    local field="$2"
+    # Extracts field from frontmatter between first and second ---
+    awk -v f="$field:" '
+        BEGIN { in_fm = 0 }
+        /^---$/ { in_fm++; next }
+        in_fm == 1 && $1 == f {
+            sub(/^[^:]*:[[:space:]]*/, "");
+            gsub(/^"|"$/, "");
+            print;
+            exit;
+        }
+        in_fm == 2 { exit }
+    ' "$file"
+}
+
+# Helper to colorize severity
+color_severity() {
+    local sev="$1"
+    case "$sev" in
+        critical) echo -e "${C_RED}${C_BOLD}critical${C_RESET}" ;;
+        high) echo -e "${C_RED}high${C_RESET}" ;;
+        medium) echo -e "${C_YELLOW}medium${C_RESET}" ;;
+        low) echo -e "${C_BLUE}low${C_RESET}" ;;
+        *) echo "$sev" ;;
+    esac
+}
+
+# Helper to colorize mood
+color_mood() {
+    local mood="$1"
+    case "$mood" in
+        frustration|anger) echo -e "${C_RED}$mood${C_RESET}" ;;
+        helplessness) echo -e "${C_MAGENTA}$mood${C_RESET}" ;;
+        urgency) echo -e "${C_YELLOW}$mood${C_RESET}" ;;
+        eureka|relief) echo -e "${C_GREEN}$mood${C_RESET}" ;;
+        self_doubt) echo -e "${C_CYAN}$mood${C_RESET}" ;;
+        *) echo "$mood" ;;
+    esac
+}
+
+# Subcommand: list
+cmd_list() {
+    ensure_dirs
+    local limit=20
+    local filter_cat=""
+    local filter_proj=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --limit) limit="$2"; shift 2 ;;
+            --category) filter_cat="$2"; shift 2 ;;
+            --project) filter_proj="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+
+    local files
+    files=$(find "$NOTES_DIR" -name "*.md" -type f 2>/dev/null | sort -r)
+
+    if [ -z "$files" ]; then
+        echo -e "${C_DIM}No retrospective notes recorded yet in $NOTES_DIR${C_RESET}"
+        return 0
+    fi
+
+    echo -e "${C_BOLD}Axolotl Retrospective Notes:${C_RESET}"
+    printf "%-17s %-12s %-16s %-20s %-14s %-10s\n" "DATE" "PROJECT" "CATEGORY" "PATTERN" "MOOD" "SEVERITY"
+    printf "%s\n" "------------------------------------------------------------------------------------------------"
+
+    local count=0
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        local id cat pat mood sev proj ts
+        ts=$(get_yaml_field "$f" "timestamp" | cut -c1-10)
+        proj=$(get_yaml_field "$f" "project")
+        cat=$(get_yaml_field "$f" "category")
+        pat=$(get_yaml_field "$f" "pattern")
+        mood=$(get_yaml_field "$f" "detected_mood")
+        sev=$(get_yaml_field "$f" "severity")
+
+        [ -z "$ts" ] && ts=$(basename "$f" | cut -c1-10)
+        [ -z "$proj" ] && proj="-"
+        [ -z "$cat" ] && cat="general"
+        [ -z "$pat" ] && pat="-"
+        [ -z "$mood" ] && mood="neutral"
+        [ -z "$sev" ] && sev="low"
+
+        # Apply filters
+        if [ -n "$filter_cat" ] && [ "$cat" != "$filter_cat" ]; then
+            continue
+        fi
+        if [ -n "$filter_proj" ] && [ "$proj" != "$filter_proj" ]; then
+            continue
+        fi
+
+        local c_sev
+        c_sev=$(color_severity "$sev")
+        local c_mood
+        c_mood=$(color_mood "$mood")
+
+        printf "%-17s %-12s %-16s %-20s " "$ts" "$(echo "$proj" | cut -c1-12)" "$(echo "$cat" | cut -c1-16)" "$(echo "$pat" | cut -c1-20)"
+        echo -e "$c_mood          $c_sev"
+
+        count=$((count + 1))
+        [ "$count" -ge "$limit" ] && break
+    done <<< "$files"
+
+    echo ""
+    echo -e "${C_DIM}Showing $count notes. Use 'axolotl view <id>' to inspect a note.${C_RESET}"
+}
+
+# Subcommand: view
+cmd_view() {
+    ensure_dirs
+    local target="$1"
+    if [ -z "$target" ]; then
+        echo -e "${C_RED}Error:${C_RESET} Please specify note ID or filename to view." >&2
+        echo "Usage: axolotl view <note-id>" >&2
+        exit 1
+    fi
+
+    local target_file=""
+    if [ -f "$target" ]; then
+        target_file="$target"
+    elif [ -f "$NOTES_DIR/$target" ]; then
+        target_file="$NOTES_DIR/$target"
+    elif [ -f "$NOTES_DIR/${target}.md" ]; then
+        target_file="$NOTES_DIR/${target}.md"
+    else
+        # Partial match search
+        target_file=$(find "$NOTES_DIR" -name "*$target*" -type f | head -n 1)
+    fi
+
+    if [ -z "$target_file" ] || [ ! -f "$target_file" ]; then
+        echo -e "${C_RED}Error:${C_RESET} Note not found matching '$target'." >&2
+        exit 1
+    fi
+
+    echo -e "${C_CYAN}================================================================================${C_RESET}"
+    echo -e "${C_BOLD}FILE: $target_file${C_RESET}"
+    echo -e "${C_CYAN}================================================================================${C_RESET}"
+    cat "$target_file"
+    echo -e "${C_CYAN}================================================================================${C_RESET}"
+}
+
+# Subcommand: stats
+cmd_stats() {
+    ensure_dirs
+    local files
+    files=$(find "$NOTES_DIR" -name "*.md" -type f 2>/dev/null)
+
+    if [ -z "$files" ]; then
+        echo -e "${C_DIM}No notes recorded yet in $NOTES_DIR${C_RESET}"
+        return 0
+    fi
+
+    local total
+    total=$(echo "$files" | wc -l | tr -d ' ')
+
+    echo -e "${C_BOLD}Axolotl Retrospective Metrics${C_RESET}"
+    echo -e "Total notes recorded: ${C_CYAN}${C_BOLD}$total${C_RESET}"
+    echo ""
+
+    # Category breakdown
+    echo -e "${C_BOLD}Distribution by Category:${C_RESET}"
+    for cat in affective problem_solving cognitive codebase_health; do
+        local c
+        c=$(grep -l "category:[[:space:]]*[\"']*$cat" "$NOTES_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
+        printf "  • %-18s: %d\n" "$cat" "$c"
+    done
+    echo ""
+
+    # Mood breakdown
+    echo -e "${C_BOLD}Distribution by Detected Mood:${C_RESET}"
+    for mood in frustration helplessness urgency self_doubt eureka neutral; do
+        local m
+        m=$(grep -l "detected_mood:[[:space:]]*[\"']*$mood" "$NOTES_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
+        printf "  • %-18s: %d\n" "$mood" "$m"
+    done
+    echo ""
+
+    # Severity breakdown
+    echo -e "${C_BOLD}Distribution by Severity:${C_RESET}"
+    for sev in critical high medium low; do
+        local s
+        s=$(grep -l "severity:[[:space:]]*[\"']*$sev" "$NOTES_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
+        printf "  • %-18s: %d\n" "$sev" "$s"
+    done
+}
+
+# Subcommand: retro
+cmd_retro() {
+    ensure_dirs
+    local days=14
+    local filter_proj=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --days) days="$2"; shift 2 ;;
+            --project) filter_proj="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+
+    local files
+    files=$(find "$NOTES_DIR" -name "*.md" -type f 2>/dev/null | sort -r)
+
+    if [ -z "$files" ]; then
+        echo -e "${C_DIM}No retrospective notes recorded yet.${C_RESET}"
+        return 0
+    fi
+
+    local total_in_period=0
+    local prompts_list=""
+    local loops_list=""
+    local emotional_list=""
+    local debt_list=""
+    local wins_list=""
+
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        local proj cat pat mood sev title prompt
+        proj=$(get_yaml_field "$f" "project")
+        cat=$(get_yaml_field "$f" "category")
+        pat=$(get_yaml_field "$f" "pattern")
+        mood=$(get_yaml_field "$f" "detected_mood")
+        sev=$(get_yaml_field "$f" "severity")
+        title=$(grep "^# Retrospective Note:" "$f" | sed 's/^# Retrospective Note:[[:space:]]*//')
+        prompt=$(awk '/^## 4\. Retrospective Prompt/{flag=1; next} /^##/{flag=0} flag' "$f" | sed '/^[[:space:]]*$/d')
+
+        if [ -n "$filter_proj" ] && [ "$proj" != "$filter_proj" ]; then
+            continue
+        fi
+
+        total_in_period=$((total_in_period + 1))
+
+        # Categorize for digest
+        case "$cat" in
+            affective)
+                emotional_list="$emotional_list\n- **$title** [Mood: $mood, Severity: $sev]\n  Observed: $pat"
+                ;;
+            problem_solving)
+                if [ "$mood" = "eureka" ] || [ "$pat" = "breakthrough" ]; then
+                    wins_list="$wins_list\n- **$title**\n  Breakthrough: $pat"
+                else
+                    loops_list="$loops_list\n- **$title** [Severity: $sev]\n  Loop: $pat"
+                fi
+                ;;
+            codebase_health)
+                debt_list="$debt_list\n- **$title** [Severity: $sev]\n  Signal: $pat"
+                ;;
+        esac
+
+        if [ -n "$prompt" ]; then
+            prompts_list="$prompts_list\n> 💭 \"$prompt\" — *(from: $title)*\n"
+        fi
+    done <<< "$files"
+
+    echo -e "${C_CYAN}================================================================================${C_RESET}"
+    echo -e "${C_BOLD}           AXOLOTL RETROSPECTIVE DIGEST & DISCUSSION AGENDA                     ${C_RESET}"
+    echo -e "${C_CYAN}================================================================================${C_RESET}"
+    echo -e "Notes analyzed: ${C_BOLD}$total_in_period${C_RESET} | Period: Last $days days"
+    echo ""
+
+    if [ -n "$wins_list" ]; then
+        echo -e "${C_GREEN}${C_BOLD}🎉 Breakthroughs & Hard-Won Wins:${C_RESET}"
+        echo -e "$wins_list"
+        echo ""
+    fi
+
+    if [ -n "$loops_list" ]; then
+        echo -e "${C_YELLOW}${C_BOLD}🔄 Problem-Solving Loops & Thrashing:${C_RESET}"
+        echo -e "$loops_list"
+        echo ""
+    fi
+
+    if [ -n "$emotional_list" ]; then
+        echo -e "${C_MAGENTA}${C_BOLD}🧠 Emotional & Cognitive Friction Points:${C_RESET}"
+        echo -e "$emotional_list"
+        echo ""
+    fi
+
+    if [ -n "$debt_list" ]; then
+        echo -e "${C_RED}${C_BOLD}⚠️  Technical Debt Signals & Compromises:${C_RESET}"
+        echo -e "$debt_list"
+        echo ""
+    fi
+
+    if [ -n "$prompts_list" ]; then
+        echo -e "${C_CYAN}${C_BOLD}💡 Curated Questions for Team / Personal Retro:${C_RESET}"
+        echo -e "$prompts_list"
+        echo ""
+    fi
+
+    echo -e "${C_CYAN}================================================================================${C_RESET}"
+}
+
+# Main routing
+main() {
+    local cmd="$1"
+    [ -n "$cmd" ] && shift || cmd="help"
+
+    case "$cmd" in
+        init) cmd_init "$@" ;;
+        record) cmd_record "$@" ;;
+        list|ls) cmd_list "$@" ;;
+        view) cmd_view "$@" ;;
+        retro) cmd_retro "$@" ;;
+        stats) cmd_stats "$@" ;;
+        help|--help|-h) show_help ;;
+        version|--version|-v) echo "axolotl version $VERSION" ;;
+        *)
+            echo -e "${C_RED}Unknown command:${C_RESET} $cmd" >&2
+            echo "Run 'axolotl --help' for usage." >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
