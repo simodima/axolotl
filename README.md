@@ -1,18 +1,20 @@
-# 🦎 Axolotl: Retrospective Observer Skill
+# 🦎 Axolotl: Retrospective Observer Ecosystem
 
 > *"Like the axolotl—quietly observing, surviving in deep waters, and capable of complete regeneration—Axolotl captures the critical moments of developer friction, breakthrough, and compromise so teams and individuals can learn, adapt, and regenerate."*
 
-**Axolotl** is a self-contained, automatically triggered retrospective monitoring and metacognitive observer skill for AI pair programming. It quietly monitors interaction turns, detects high-signal friction patterns (affective distress, thrashing loops, breakthrough discoveries, cognitive overload, code quality decay, and explicit tech debt compromises), and records structured retrospective notes in `~/.axolotl/notes/`.
+**Axolotl** is a retrospective monitoring and metacognitive observer ecosystem for AI pair programming. It quietly monitors interaction turns, detects high-signal friction patterns (affective distress, thrashing loops, breakthrough discoveries, cognitive overload, code quality decay, and explicit tech debt compromises), and records structured retrospective notes in `~/.axolotl/notes/`.
 
-The skill is packaged as an open Agent Skill inside [`skills/axolotl/`](skills/axolotl/) ready for distribution across the AI agent ecosystem via **skills.sh**.
+The repository provides two complementary skills ready for distribution via **skills.sh**:
+1. [**`skills/axolotl/`**](skills/axolotl/): Core retrospective framework, detailed pattern rubric, note schemas, and bundled CLI toolkit.
+2. [**`skills/axolotl-monitor/`**](skills/axolotl-monitor/): Automatically triggered skill that evaluates reasoning steps at the end of each turn and triggers note recording.
 
 ---
 
 ## 📑 Table of Contents
 - [Why Axolotl?](#-why-axolotl)
 - [How It Works](#-how-it-works)
+- [Skills in this Repository](#-skills-in-this-repository)
 - [High-Signal Pattern Taxonomy](#-high-signal-pattern-taxonomy)
-- [Repository Structure](#-repository-structure)
 - [Storage Initialization](#-storage-initialization)
 - [Skill Scripts Reference](#-skill-scripts-reference)
 - [Note Schema](#-note-schema)
@@ -34,8 +36,6 @@ Normally, when the session ends, **these lessons vanish**. Axolotl turns these f
 
 ## ⚡ How It Works
 
-Axolotl is designed to be **automatically triggered** at the conclusion of the agent's chain of thoughts on every turn:
-
 ```
 ┌────────────────────────────────────────────────────────┐
 │             Agent Execution Loop                       │
@@ -45,7 +45,7 @@ Axolotl is designed to be **automatically triggered** at the conclusion of the a
 │                                   ▼                    │
 │                    [End of Chain of Thought]           │
 │                                   │                    │
-│                 Axolotl Automatic Skill Check          │
+│                 Axolotl Monitor Evaluation             │
 │              (Did a high-signal pattern occur?)        │
 │                         │                │             │
 │                    YES  │                │ NO          │
@@ -59,6 +59,40 @@ When a high-signal pattern is detected, the agent records the note silently and 
 ```markdown
 > 📝 *Axolotl: recorded retrospective note on [pattern_name]*
 ```
+
+---
+
+## 📦 Skills in this Repository
+
+```text
+axolotl/
+├── skills.sh.json                # skills.sh repo configuration (listing axolotl & axolotl-monitor)
+├── README.md                     # Documentation
+├── AGENTS.md                     # Workspace guidelines
+├── .agents/
+│   └── rules/
+│       └── axolotl.md            # Recovered workspace rule
+└── skills/
+    ├── axolotl/                  # Core retrospective skill & toolkit
+    │   ├── SKILL.md              # Rubric, schema, and operational instructions
+    │   └── scripts/
+    │       ├── init.sh           # Storage initializer
+    │       ├── axolotl           # Full CLI toolkit (record, list, view, retro, stats)
+    │       └── record-note.sh    # Fast recording wrapper
+    └── axolotl-monitor/          # Automatically triggered monitoring skill
+        └── SKILL.md              # Turn evaluation workflow instructions
+```
+
+### 1. `axolotl` (Core Skill)
+- **Path**: [`skills/axolotl/SKILL.md`](skills/axolotl/SKILL.md)
+- Comprehensive catalog of friction signals and breakthroughs.
+- Structured note templates and guidelines.
+- Executable scripts to initialize storage and generate retro digests.
+
+### 2. `axolotl-monitor` (Automatically Triggered Skill)
+- **Path**: [`skills/axolotl-monitor/SKILL.md`](skills/axolotl-monitor/SKILL.md)
+- Migrated directly from the monitoring rule.
+- Explicitly defined with frontmatter and instructions to be automatically evaluated at the end of each turn's reasoning chain.
 
 ---
 
@@ -99,26 +133,6 @@ Axolotl enforces a **selective threshold** to prevent note fatigue. Only high-si
 
 ---
 
-## 📦 Repository Structure
-
-The repository follows the open **skills.sh** standard with the skill placed directly in `skills/axolotl/`:
-
-```text
-axolotl/
-├── skills.sh.json            # skills.sh repository configuration
-├── README.md                 # Documentation
-├── AGENTS.md                 # Agent guidelines
-└── skills/
-    └── axolotl/
-        ├── SKILL.md          # Automatically triggered skill instructions & rubric
-        └── scripts/
-            ├── init.sh       # Storage initializer
-            ├── axolotl       # Full CLI toolkit (record, list, view, retro, stats)
-            └── record-note.sh# Note recording wrapper
-```
-
----
-
 ## 🚀 Storage Initialization
 
 To initialize the `$HOME/.axolotl/notes` directory:
@@ -127,13 +141,11 @@ To initialize the `$HOME/.axolotl/notes` directory:
 ./skills/axolotl/scripts/init.sh
 ```
 
-This ensures `$HOME/.axolotl/notes` exists without installing executables in your home directory or altering shell profiles.
-
 ---
 
 ## 🛠️ Skill Scripts Reference
 
-All operations can be run directly using the scripts inside the skill:
+All operations can be run directly using the scripts inside `skills/axolotl/`:
 
 ### 1. List Recent Notes
 ```bash
@@ -161,13 +173,10 @@ All operations can be run directly using the scripts inside the skill:
   --root-cause "Stale background container was holding the port" \
   --retro-prompt "Why didn't we inspect 'lsof -i :8080' before editing compose files?"
 ```
-*(Running `./skills/axolotl/scripts/axolotl record` with no arguments launches an interactive questionnaire).*
 
 ### 4. Generate a Retrospective Digest
-Synthesizes recent notes, detects recurring bottlenecks, and formats curated retro questions:
 ```bash
-./skills/axolotl/scripts/axolotl retro
-./skills/axolotl/scripts/axolotl retro --days 30 --project axolotl
+./skills/axolotl/scripts/axolotl retro --days 14
 ```
 
 ### 5. View Metrics & Distribution

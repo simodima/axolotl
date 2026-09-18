@@ -6,7 +6,8 @@
       "title": "Retrospective & Observation",
       "description": "Skills for monitoring pair-programming dynamics, emotional friction, problem-solving loops, and engineering health.",
       "skills": [
-        "axolotl"
+        "axolotl",
+        "axolotl-monitor"
       ]
     }
   ]
