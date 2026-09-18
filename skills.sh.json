@@ -1,0 +1,13 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Retrospective & Observation",
+      "description": "Skills for monitoring pair-programming dynamics, emotional friction, problem-solving loops, and engineering health.",
+      "skills": [
+        "axolotl"
+      ]
+    }
+  ]
+}
