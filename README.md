@@ -1,5 +1,9 @@
 # 🦎 Axolotl: Retrospective Observer Ecosystem
 
+<p align="center">
+  <img src="resources/axolotl.jpeg" alt="Axolotl: Retrospective Observer" width="650" />
+</p>
+
 > *"Like the axolotl—quietly observing, surviving in deep waters, and capable of complete regeneration—Axolotl captures the critical moments of developer friction, breakthrough, and compromise so teams and individuals can learn, adapt, and regenerate."*
 
 **Axolotl** is a retrospective monitoring and metacognitive observer ecosystem for AI pair programming. It quietly monitors interaction turns, detects high-signal friction patterns (affective distress, thrashing loops, breakthrough discoveries, cognitive overload, code quality decay, and explicit tech debt compromises), and records structured retrospective notes in `~/.axolotl/notes/`.
