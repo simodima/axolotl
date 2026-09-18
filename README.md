@@ -2,9 +2,9 @@
 
 > *"Like the axolotl—quietly observing, surviving in deep waters, and capable of complete regeneration—Axolotl captures the critical moments of developer friction, breakthrough, and compromise so teams and individuals can learn, adapt, and regenerate."*
 
-**Axolotl** is a self-contained retrospective monitoring and metacognitive observer skill for AI pair programming with **Google Antigravity**. It quietly monitors interaction turns, detects high-signal friction patterns (affective distress, thrashing loops, breakthrough discoveries, cognitive overload, code quality decay, and explicit tech debt compromises), and records structured retrospective notes in `~/.axolotl/notes/`.
+**Axolotl** is a self-contained, automatically triggered retrospective monitoring and metacognitive observer skill for AI pair programming. It quietly monitors interaction turns, detects high-signal friction patterns (affective distress, thrashing loops, breakthrough discoveries, cognitive overload, code quality decay, and explicit tech debt compromises), and records structured retrospective notes in `~/.axolotl/notes/`.
 
-The entire skill is packaged as a **single, portable unit** inside [`.agents/skills/axolotl/`](.agents/skills/axolotl/) with zero external system pollution.
+The skill is packaged as an open Agent Skill inside [`skills/axolotl/`](skills/axolotl/) ready for distribution across the AI agent ecosystem via **skills.sh**.
 
 ---
 
@@ -12,7 +12,7 @@ The entire skill is packaged as a **single, portable unit** inside [`.agents/ski
 - [Why Axolotl?](#-why-axolotl)
 - [How It Works](#-how-it-works)
 - [High-Signal Pattern Taxonomy](#-high-signal-pattern-taxonomy)
-- [Skill Unit Structure](#-skill-unit-structure)
+- [Repository Structure](#-repository-structure)
 - [Storage Initialization](#-storage-initialization)
 - [Skill Scripts Reference](#-skill-scripts-reference)
 - [Note Schema](#-note-schema)
@@ -32,21 +32,21 @@ Normally, when the session ends, **these lessons vanish**. Axolotl turns these f
 
 ---
 
-## ⚙️ How It Works
+## ⚡ How It Works
 
-Axolotl integrates into Antigravity at three levels:
+Axolotl is designed to be **automatically triggered** at the conclusion of the agent's chain of thoughts on every turn:
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│             Agent Execution Loop (Antigravity)          │
+│             Agent Execution Loop                       │
 │                                                        │
 │  [User Request] ──> [Reasoning & Tool Execution]       │
 │                                   │                    │
 │                                   ▼                    │
 │                    [End of Chain of Thought]           │
 │                                   │                    │
-│                    Axolotl Rule Evaluation             │
-│                 (Did a high-signal pattern occur?)     │
+│                 Axolotl Automatic Skill Check          │
+│              (Did a high-signal pattern occur?)        │
 │                         │                │             │
 │                    YES  │                │ NO          │
 │                         ▼                ▼             │
@@ -55,11 +55,7 @@ Axolotl integrates into Antigravity at three levels:
 └────────────────────────────────────────────────────────┘
 ```
 
-1. **Workspace Rule ([`.agents/rules/axolotl.md`](.agents/rules/axolotl.md) & [`AGENTS.md`](AGENTS.md))**: Instructs the agent to evaluate the turn at the end of its chain of thoughts.
-2. **Skill ([`.agents/skills/axolotl/SKILL.md`](.agents/skills/axolotl/SKILL.md))**: Contains the detailed detection rubric, taxonomy, note templates, and helper scripts.
-3. **Skill Scripts ([`.agents/skills/axolotl/scripts/`](.agents/skills/axolotl/scripts/))**: Bundled scripts to initialize storage, record notes, and synthesize retrospectives.
-
-When a note is recorded, the agent appends an unobtrusive footer:
+When a high-signal pattern is detected, the agent records the note silently and appends an unobtrusive footer:
 ```markdown
 > 📝 *Axolotl: recorded retrospective note on [pattern_name]*
 ```
@@ -103,17 +99,22 @@ Axolotl enforces a **selective threshold** to prevent note fatigue. Only high-si
 
 ---
 
-## 📦 Skill Unit Structure
+## 📦 Repository Structure
 
-The skill is completely self-contained within `.agents/skills/axolotl/`:
+The repository follows the open **skills.sh** standard with the skill placed directly in `skills/axolotl/`:
 
 ```text
-.agents/skills/axolotl/
-├── SKILL.md                  # Main skill rubric & instructions
-└── scripts/
-    ├── init.sh               # Storage initialization script
-    ├── axolotl               # Full CLI toolkit (record, list, view, retro, stats)
-    └── record-note.sh        # Fast recording helper wrapper
+axolotl/
+├── skills.sh.json            # skills.sh repository configuration
+├── README.md                 # Documentation
+├── AGENTS.md                 # Agent guidelines
+└── skills/
+    └── axolotl/
+        ├── SKILL.md          # Automatically triggered skill instructions & rubric
+        └── scripts/
+            ├── init.sh       # Storage initializer
+            ├── axolotl       # Full CLI toolkit (record, list, view, retro, stats)
+            └── record-note.sh# Note recording wrapper
 ```
 
 ---
@@ -123,10 +124,10 @@ The skill is completely self-contained within `.agents/skills/axolotl/`:
 To initialize the `$HOME/.axolotl/notes` directory:
 
 ```bash
-./.agents/skills/axolotl/scripts/init.sh
+./skills/axolotl/scripts/init.sh
 ```
 
-This ensures `$HOME/.axolotl/notes` exists without installing any executables into your home directory or altering shell profiles.
+This ensures `$HOME/.axolotl/notes` exists without installing executables in your home directory or altering shell profiles.
 
 ---
 
@@ -136,18 +137,18 @@ All operations can be run directly using the scripts inside the skill:
 
 ### 1. List Recent Notes
 ```bash
-./.agents/skills/axolotl/scripts/axolotl list
-./.agents/skills/axolotl/scripts/axolotl list --limit 10 --category problem_solving
+./skills/axolotl/scripts/axolotl list
+./skills/axolotl/scripts/axolotl list --limit 10 --category problem_solving
 ```
 
 ### 2. View a Specific Note
 ```bash
-./.agents/skills/axolotl/scripts/axolotl view <note-id-or-partial-slug>
+./skills/axolotl/scripts/axolotl view <note-id-or-partial-slug>
 ```
 
 ### 3. Record a Note
 ```bash
-./.agents/skills/axolotl/scripts/record-note.sh \
+./skills/axolotl/scripts/record-note.sh \
   --title "Looping on Docker port collision" \
   --category "problem_solving" \
   --pattern "thrashing_loop" \
@@ -160,18 +161,18 @@ All operations can be run directly using the scripts inside the skill:
   --root-cause "Stale background container was holding the port" \
   --retro-prompt "Why didn't we inspect 'lsof -i :8080' before editing compose files?"
 ```
-*(Running `./.agents/skills/axolotl/scripts/axolotl record` with no arguments launches an interactive prompt).*
+*(Running `./skills/axolotl/scripts/axolotl record` with no arguments launches an interactive questionnaire).*
 
 ### 4. Generate a Retrospective Digest
 Synthesizes recent notes, detects recurring bottlenecks, and formats curated retro questions:
 ```bash
-./.agents/skills/axolotl/scripts/axolotl retro
-./.agents/skills/axolotl/scripts/axolotl retro --days 30 --project axolotl
+./skills/axolotl/scripts/axolotl retro
+./skills/axolotl/scripts/axolotl retro --days 30 --project axolotl
 ```
 
 ### 5. View Metrics & Distribution
 ```bash
-./.agents/skills/axolotl/scripts/axolotl stats
+./skills/axolotl/scripts/axolotl stats
 ```
 
 ---
@@ -182,8 +183,8 @@ Notes are stored as Markdown files with YAML frontmatter in `~/.axolotl/notes/YY
 
 ```markdown
 ---
-id: 2026-09-17_2225_looping_on_docker_port_collision
-timestamp: "2026-09-17T22:25:42+0200"
+id: 2026-09-18_1725_looping_on_docker_port_collision
+timestamp: "2026-09-18T17:25:42+0200"
 project: "axolotl"
 category: "problem_solving"
 pattern: "thrashing_loop"
@@ -214,7 +215,7 @@ Why didn't we inspect 'lsof -i :8080' or docker ps before editing compose files?
 Before your weekly team retrospective or personal sprint review, run:
 
 ```bash
-./.agents/skills/axolotl/scripts/axolotl retro --days 7
+./skills/axolotl/scripts/axolotl retro --days 7
 ```
 
 This generates a structured agenda highlighting:

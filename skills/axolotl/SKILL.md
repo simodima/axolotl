@@ -1,24 +1,46 @@
 ---
 name: axolotl
 description: >-
-  Retrospective observer skill. Evaluates the interaction at the end of the agent's chain of thoughts
-  for high-signal patterns (emotional distress, thrashing loops, breakthrough discoveries, cognitive overload,
-  code quality decay, explicit tech debt instructions) and records structured retrospective notes in ~/.axolotl/notes/.
+  Retrospective observer skill. Automatically triggered at the conclusion of the agent's chain of thoughts on every turn to silently evaluate whether high-signal friction, breakthrough, or code quality patterns occurred (frustration, helplessness, deadline urgency, thrashing loops, assumption collapse, cognitive overload, code quality decay, explicit debt instructions). Records structured retrospective notes in ~/.axolotl/notes/ and appends a subtle footer.
 ---
 
 # Axolotl: Retrospective Observer Skill
 
 Like the axolotl—a creature celebrated for quiet observation, resilience, and remarkable regeneration—this skill empowers the agent to act as a thoughtful, metacognitive observer of the developer journey.
 
-During intense development sessions, developers and agents encounter critical friction points, emotional highs and lows, vicious debugging loops, and moments of technical compromise. These moments are usually lost once the terminal closes. Axolotl captures these pivotal moments as structured retrospective notes in `~/.axolotl/notes/`, transforming real-time struggle and triumph into lasting insight.
+During intense development sessions, developers and agents encounter critical friction points, emotional highs and lows, vicious debugging loops, and moments of technical compromise. These moments are usually lost once the session closes. Axolotl captures these pivotal moments as structured retrospective notes in `~/.axolotl/notes/`, transforming real-time struggle and triumph into lasting insight.
 
-The skill is packaged as a **self-contained unit**: all logic, templates, and execution scripts live directly inside this skill folder (`.agents/skills/axolotl/`), storing notes in the standard user directory `~/.axolotl/notes/` without polluting `$HOME` with external binaries or modifying shell configurations.
+The skill is packaged as a **self-contained unit** inside `skills/axolotl/`, storing notes in the user directory `~/.axolotl/notes/` without polluting `$HOME` with external binaries or modifying shell configurations.
 
 ---
 
-## High-Signal Detection Rubric
+## ⚡ Automatic Evaluation Workflow (End of Chain of Thought)
 
-Axolotl uses a **selective threshold**: it avoids logging minor, trivial bumps to prevent note fatigue. It intervenes only when a **high-signal pattern** is recognized in one of four core domains:
+This skill is designed to be **automatically triggered and evaluated** at the conclusion of your internal reasoning (chain of thought) for every response turn:
+
+### 1. Silent Signal Check
+At the end of your chain of thoughts, review the turn's user input, execution steps, tool results, and conversational context against the high-signal patterns below:
+* **Affective & Emotional States**: Frustration/anger, helplessness/cognitive fatigue, deadline panic/urgency, imposter syndrome/self-doubt, breakthrough & relief (eureka).
+* **Problem-Solving Loops**: Thrashing (3+ attempts at same failed approach), historic first-time solves, assumption collapse, sunk cost rabbit holes.
+* **Cognitive & Collaborative Dynamics**: Divergent/confused requests, operating far outside comfort zone, mental model mismatch.
+* **Codebase Health Signals**: Low quality / fragile code decay, explicit instructions to accumulate debt (skipping tests, disabling linters, bypassing security), chronic tooling/environment friction.
+
+### 2. Threshold Filter
+* Only log **high-signal, meaningful moments** that offer valuable reflection for a future retrospective.
+* Do **not** log routine debugging, expected syntax errors, or everyday progress.
+
+### 3. Action on Trigger
+If a high-signal condition is identified:
+1. **Record Note**: Document the observation in `~/.axolotl/notes/YYYY-MM-DD_HHMM_<slug>.md` (using `./skills/axolotl/scripts/record-note.sh` or direct file write).
+2. **Subtle Footer**: Conclude the user-facing response with the subtle one-line footer:
+   ```markdown
+   > 📝 *Axolotl: recorded retrospective note on [pattern_name]*
+   ```
+If no high-signal condition is met, conclude the turn normally without logging or adding any footer.
+
+---
+
+## 🎯 High-Signal Detection Rubric
 
 ### 1. Affective & Emotional States (User Experience)
 * **Frustration / Irritation (`affective.frustration`)**: Snappy tone, abrupt commands, repeated question marks or caps ("Why does this keep failing?!", "Just make it work already"), exasperation after failed attempts.
@@ -45,20 +67,7 @@ Axolotl uses a **selective threshold**: it avoids logging minor, trivial bumps t
 
 ---
 
-## When to Intervene
-
-At the **end of the agent's chain of thought** for a turn:
-1. **Reflect**: Ask: *Did any high-signal pattern from the rubric occur during this turn or recent turn sequence?*
-2. **Evaluate Threshold**: Is this a genuine high-signal moment worth reviewing in a retrospective, or just everyday coding progress?
-3. **Record**: If high-signal, record a note in `~/.axolotl/notes/`.
-4. **Subtle Footer**: Append a one-line subtle footer at the very end of your user-facing response:
-   ```markdown
-   > 📝 *Axolotl: recorded retrospective note on <pattern_name>*
-   ```
-
----
-
-## Storage & Note Structure
+## 📁 Storage & Note Structure
 
 Notes are saved in:
 ```text
@@ -68,7 +77,7 @@ Notes are saved in:
 ### Initializing Storage
 Before recording the first note (or to ensure directories exist), run:
 ```bash
-./scripts/init.sh
+./skills/axolotl/scripts/init.sh
 ```
 This simply creates `~/.axolotl/notes` if it does not already exist.
 
@@ -76,7 +85,7 @@ This simply creates `~/.axolotl/notes` if it does not already exist.
 ```markdown
 ---
 id: YYYY-MM-DD_HHMM_<slug>
-timestamp: "2026-09-17T22:30:00+02:00"
+timestamp: "2026-09-18T17:30:00+02:00"
 project: "<project_name>"
 category: "problem_solving" # affective | problem_solving | cognitive | codebase_health
 pattern: "thrashing_loop"
@@ -102,17 +111,17 @@ A probing question or takeaway for the next team or personal retrospective (e.g.
 
 ---
 
-## Skill Scripts
+## 🛠️ Skill Scripts Reference
 
-All executable tools are bundled within the skill's [`scripts/`](./scripts/) directory:
+All executable tools are bundled within [`skills/axolotl/scripts/`](./scripts/):
 
-- [**`scripts/init.sh`**](./scripts/init.sh): Creates the `$HOME/.axolotl` directory structure.
+- [**`scripts/init.sh`**](./scripts/init.sh): Creates the `$HOME/.axolotl/notes` directory.
 - [**`scripts/record-note.sh`**](./scripts/record-note.sh): Fast wrapper to record a retrospective note.
 - [**`scripts/axolotl`**](./scripts/axolotl): Complete retrospective toolkit (`record`, `list`, `view`, `retro`, `stats`).
 
 ### Recording Example
 ```bash
-./scripts/record-note.sh \
+./skills/axolotl/scripts/record-note.sh \
   --title "Looping on Docker networking bridge" \
   --category "problem_solving" \
   --pattern "thrashing_loop" \
@@ -129,7 +138,7 @@ All executable tools are bundled within the skill's [`scripts/`](./scripts/) dir
 
 ---
 
-## Guidelines for Quality Retrospectives
+## 💡 Guidelines for Quality Retrospectives
 * **Empathetic & Non-judgmental**: Document human emotions objectively with empathy, never with blame or condescension.
 * **Action-oriented**: The "Retrospective Prompt" must provoke useful systemic reflection (e.g. better tooling, documentation, breaks, architecture) rather than superficial fixes.
 * **Keep It Flowing**: Do not halt or derail the user's workflow to talk about the note unless the user brings it up. The subtle footer is all that is needed.
